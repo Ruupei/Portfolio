@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset='utf-8' />
+    <title>Mapbox Storytelling</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <link rel="icon" type="image/x-icon"
+        href="https://raw.githubusercontent.com/mapbox/assembly/publisher-staging/src/svgs/mapbox.svg">
+    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.js'></script>
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.css' rel='stylesheet' />
+    <script src="https://cdn.jsdelivr.net/npm/mapbox-gl-globe-minimap@1.2.0/dist/bundle.js"></script>
+    <script src="https://unpkg.com/scrollama"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+        }
+
+        a,
+        a:hover,
+        a:visited {
+            color: #0071bc;
+        }
+
+        #map {
+            top: 0;
+            height: 100vh;
+            width: 100vw;
+            position: fixed;
+        }
+
+        #header {
+            margin: auto;
+            width: 100%;
+            position: relative;
+            z-index: 5;
+            font-size: 25px;
+        }
+
+        #header h1,
+        #header h2,
+        #header p {
+            margin: 0;
+            padding: 2vh 2vw;
+            text-align: center;
+        }
+
+        #footer {
+            width: 100%;
+            min-height: 5vh;
+            padding-top: 2vh;
+            padding-bottom: 2vh;
+            text-align: center;
+            line-height: 25px;
+            font-size: 16px;
+            position: relative;
+            z-index: 5;
+        }
+
+        #features {
+            padding-top: 10vh;
+            padding-bottom: 10vh;
+        }
+
+        .hidden {
+            visibility: hidden;
+        }
+
+        .centered {
+            width: 50vw;
+            margin: 0 auto;
+        }
+
+        .lefty {
+            width: 45vw;
+            margin-left: 5vw;
+        }
+
+        .righty {
+            width: 33vw;
+            margin-left: 62vw;
+        }
+
+        .fully {
+            width: 100%;
+            margin: auto;
+        }
+
+        .light {
+            color: #444;
+            background-color: #fafafa;
+        }
+
+        .dark {
+            color: #fafafa;
+            background-color: #444;
+        }
+
+        .green {
+            color: #c7c7c7;
+            background-color: darkgreen;
+        }
+
+        .blue {
+            color: #000000;
+            background-color: rgba(89, 86, 120, 0.874);
+        }
+
+        .gray {
+            color: #000000;
+            background-color: rgb(239, 239, 239);
+        }
+
+        .step {
+            padding-bottom: 50vh;
+            /* margin-bottom: 10vh; */
+            opacity: 0.9;
+        }
+
+        .step.active {
+            opacity: 0.9;
+        }
+
+        .step div {
+            padding: 25px 50px;
+            line-height: 25px;
+            font-size: 16px;
+            text-align: justify;
+        }
+
+        .step img {
+            width: 100%;
+        }
+
+        @media (max-width: 750px) {
+
+            .centered,
+            .lefty,
+            .righty,
+            .fully {
+                width: 90vw;
+                margin: 0 auto;
+            }
+        }
+
+        /* Fix issue on mobile browser where scroll breaks  */
+        .mapboxgl-canvas-container.mapboxgl-touch-zoom-rotate.mapboxgl-touch-drag-pan,
+        .mapboxgl-canvas-container.mapboxgl-touch-zoom-rotate.mapboxgl-touch-drag-pan .mapboxgl-canvas {
+            touch-action: unset;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="map"></div>
+    <div id="story"></div>
+    <div id="legend" class="map-legend" style="display: none;">
+        <h4>Legend</h4>
+        <div><span style="background-color: #cce5ff;"></span>Low (0)</div>
+        <div><span style="background-color: #004085;"></span>High (50)</div>
+    </div>
+
+
+    <script src="./config.js"></script>
+    <script>
+        var initLoad = true;
+        var layerTypes = {
+            'fill': ['fill-opacity'],
+            'line': ['line-opacity'],
+            'circle': ['circle-opacity', 'circle-stroke-opacity'],
+            'symbol': ['icon-opacity', 'text-opacity'],
+            'raster': ['raster-opacity'],
+            'fill-extrusion': ['fill-extrusion-opacity'],
+            'heatmap': ['heatmap-opacity']
+        }
+
+        var alignments = {
+            'left': 'lefty',
+            'center': 'centered',
+            'right': 'righty',
+            'full': 'fully'
+        }
+
+        function getLayerPaintType(layer) {
+            var layerType = map.getLayer(layer).type;
+            return layerTypes[layerType];
+        }
+
+        function setLayerOpacity(layer) {
+            var paintProps = getLayerPaintType(layer.layer);
+            paintProps.forEach(function (prop) {
+                var options = {};
+                if (layer.duration) {
+                    var transitionProp = prop + "-transition";
+                    options = { "duration": layer.duration };
+                    map.setPaintProperty(layer.layer, transitionProp, options);
+                }
+                map.setPaintProperty(layer.layer, prop, layer.opacity, options);
+            });
+        }
+
+
+        // Add a function to show and hide the Finns in NSW layer
+        function showPolygonLayer() {
+            map.setLayoutProperty('finns-shapefile-layer', 'visibility', 'visible');
+        }
+        function hidePolygonLayer() {
+            map.setLayoutProperty('finns-shapefile-layer', 'visibility', 'none');
+        }
+        // Add a function to add the lobster habitat layer
+        function showHabitatLayer() {
+            map.setLayoutProperty('lobster-habitat-layer', 'visibility', 'visible');
+        }
+        function hideHabitatLayer() {
+            map.setLayoutProperty('lobster-habitat-layer', 'visibility', 'none');
+        }
+        // Add a function to add the sanctuary zone layer
+        function showSanctuaryZoneLayer() {
+            map.setLayoutProperty('sanctuary-zone-layer', 'visibility', 'visible');
+        }
+        function hideSanctuaryZoneLayer() {
+            map.setLayoutProperty('sanctuary-zone-layer', 'visibility', 'none');
+        }
+        // Add a function to add the special purpose zone layer
+        function showSpecialZoneLayer() {
+            map.setLayoutProperty('special-purpose-zone-layer', 'visibility', 'visible');
+        }
+        function hideSpecialZoneLayer() {
+            map.setLayoutProperty('special-purpose-zone-layer', 'visibility', 'none');
+        }
+        // Add a function to add the zoning layer for sydney
+        function showZoningLayer() {
+            map.setLayoutProperty('zoning-layer', 'visibility', 'visible');
+        }
+        function hideZoningLayer() {
+            map.setLayoutProperty('zoning-layer', 'visibility', 'none');
+        }
+        // Function to show and hide the Meadows Rd hotspot poly points
+        function showPolyPoints() {
+            map.setLayoutProperty('vector-points-layer', 'visibility', 'visible');
+        }
+        function hidePolyPoints() {
+            map.setLayoutProperty('vector-points-layer', 'visibility', 'none');
+        }
+        // Function to show and hide the rectified map for Callala bay
+        function showRectifiedMap() {
+            map.setLayoutProperty('urban_change', 'visibility', 'visible');
+        }
+        function hideRectifiedMap() {
+            map.setLayoutProperty('urban_change', 'visibility', 'none');
+        }
+        // Functions to show/hide the legend
+        function showLegend() {
+            document.getElementById('legend').style.display = 'block';
+        }
+        function hideLegend() {
+            document.getElementById('legend').style.display = 'none';
+        }
+        // Function to add RUSTLE 0.08 layer
+        function showRasterLayer() {
+            map.setLayoutProperty('RUSLE 0.08', 'visibility', 'visible');
+        }
+        function hideRasterLayer() {
+            map.setLayoutProperty('RUSLE 0.08', 'visibility', 'none');
+        }
+
+        var story = document.getElementById('story');
+        var features = document.createElement('div');
+        features.setAttribute('id', 'features');
+
+        var header = document.createElement('div');
+
+        if (config.title) {
+            var titleText = document.createElement('h1');
+            titleText.innerText = config.title;
+            header.appendChild(titleText);
+        }
+
+        if (config.subtitle) {
+            var subtitleText = document.createElement('h2');
+            subtitleText.innerText = config.subtitle;
+            header.appendChild(subtitleText);
+        }
+
+        if (config.byline) {
+            var bylineText = document.createElement('p');
+            bylineText.innerText = config.byline;
+            header.appendChild(bylineText);
+        }
+
+        if (header.innerText.length > 0) {
+            header.classList.add(config.theme);
+            header.setAttribute('id', 'header');
+            story.appendChild(header);
+        }
+
+        config.chapters.forEach((record, idx) => {
+            var container = document.createElement('div');
+            var chapter = document.createElement('div');
+
+            if (record.title) {
+                var title = document.createElement('h3');
+                title.innerText = record.title;
+                chapter.appendChild(title);
+            }
+
+// THIS HERE IS MY CUSTON ATTEMPT TO ADD A VIDEO TO THE THE CHAPTER
+            if (record.video) {
+                var iframe = document.createElement('iframe');
+                iframe.width = '560';
+                iframe.height = '315';
+                iframe.src = record.video;
+                iframe.frameBorder = '0';
+                iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+                iframe.allowFullscreen = true;
+                chapter.appendChild(iframe);
+            } else if (record.image) {
+                var image = new Image();
+                image.src = record.image;
+                chapter.appendChild(image);
+            }
+
+            if (record.description) {
+                var story = document.createElement('p');
+                story.innerHTML = record.description;
+                chapter.appendChild(story);
+            }
+
+            container.setAttribute('id', record.id);
+            container.classList.add('step');
+            if (idx === 0) {
+                container.classList.add('active');
+            }
+
+            chapter.classList.add(config.theme);
+            container.appendChild(chapter);
+            container.classList.add(alignments[record.alignment] || 'centered');
+            if (record.hidden) {
+                container.classList.add('hidden');
+            }
+            features.appendChild(container);
+        });
+
+        story.appendChild(features);
+
+        var footer = document.createElement('div');
+
+        if (config.footer) {
+            var footerText = document.createElement('p');
+            footerText.innerHTML = config.footer;
+            footer.appendChild(footerText);
+        }
+
+        if (footer.innerText.length > 0) {
+            footer.classList.add(config.theme);
+            footer.setAttribute('id', 'footer');
+            story.appendChild(footer);
+        }
+
+        mapboxgl.accessToken = config.accessToken;
+
+        var map = new mapboxgl.Map({
+            container: 'map',
+            style: config.style,
+            center: config.chapters[0].location.center,
+            zoom: config.chapters[0].location.zoom,
+            bearing: config.chapters[0].location.bearing,
+            pitch: config.chapters[0].location.pitch,
+            interactive: false,
+            projection: config.projection
+        });
+
+        // Create a inset map if enabled in config.js
+        if (config.inset) {
+            map.addControl(
+                new GlobeMinimap({ ...config.insetOptions }),
+                config.insetPosition
+            );
+        }
+
+        // Add the shapefile for Finns in NSW
+        map.on('load', () => {
+            // Add the vector source for the shapefile
+            map.addSource('finns_shapefile', {
+                type: 'vector',
+                url: 'mapbox://rheikkinen.du8h7yrc'
+            });
+
+            // Add a fill layer for the shapefile
+            map.addLayer({
+                id: 'finns-shapefile-layer',
+                type: 'fill',
+                source: 'finns_shapefile',
+                'source-layer': 'finns_shapefile-2p6iqz',
+                paint: {
+                    'fill-color': [
+                    'step',               // Use step for discrete color ranges
+                        ['get', 'Finnish'],   // The 'Finnish' attribute
+                        '#f7fbff',            // Lightest blue for values 0–11
+                        5, '#c6dbef',        // 12–22
+                        15, '#6baed6',        // 23–33
+                        25, '#4292c6',        // 34–44
+                        35, '#08306b'         // Darkest blue for 45–56
+                    ],
+                    'fill-opacity': 0.8
+                }
+            });
+        });
+        // Add the hotspot layer for Meadows Rd, WA
+        map.on('load', () => {
+            // Add the vector source for the shapefile
+            map.addSource('hotspots', {
+                type: 'vector',
+                url: 'mapbox://rheikkinen.cm4dn0ybw1obi1pl49fgaoodv-48f3j'
+            });
+
+            // Add a fill layer for the shapefile
+            map.addLayer({
+                id: 'vector-points-layer',
+                type: 'circle',
+                source: 'hotspots',
+                'source-layer': 'Meadows_rd_hotspots',
+                layout: {
+                    'visibility': 'none' // Start with layer hidden
+                },
+                paint: {
+                    'circle-radius': 5,
+                    'circle-color': '#FF5733'
+                }
+            });
+        });
+        // Adding the lobster habitat layer
+        map.on('load', () => {
+            // Add the vector source for the shapefile
+            map.addSource('lobster_habitat', {
+                type: 'vector',
+                url: 'mapbox://rheikkinen.5jjyrqn6'
+            });
+
+            // Add a fill layer for the shapefile
+            map.addLayer({
+                id: 'lobster-habitat-layer',
+                type: 'fill',
+                source: 'lobster_habitat',
+                'source-layer': 'lobster_habitat_filtered-bgxnpz',
+                layout: {
+                    'visibility': 'none' // Start with layer hidden
+                },
+                paint: {
+                    'fill-color': '#FF4C4C',
+                    'fill-opacity': 1
+                }
+            });
+        });
+        // Adding the sanctuary zone layer
+        map.on('load', () => {
+            // Add the vector source for the shapefile
+            map.addSource('sanctuary-zone', {
+                type: 'vector',
+                url: 'mapbox://rheikkinen.3p9788sc'
+            });
+
+            // Make the shapefile display as a line and choose color
+            map.addLayer({
+                id: 'sanctuary-zone-layer',
+                type: 'line',
+                source: 'sanctuary-zone',
+                'source-layer': 'sanctuary_zone-4nrdee',
+                layout: {
+                    'visibility': 'none' // Start with layer hidden
+                },
+                paint: {
+                    'line-color': '#39FF14',
+                    'line-width': 4,
+                }
+            });
+        });
+        // Adding the special purpose zone layer
+        map.on('load', () => {
+            // Add the vector source for the shapefile
+            map.addSource('special-purpose-zone', {
+                type: 'vector',
+                url: 'mapbox://rheikkinen.0517aih3'
+            });
+
+            // Display the layer as a line and choose the color
+            map.addLayer({
+                id: 'special-purpose-zone-layer',
+                type: 'line',
+                source: 'special-purpose-zone',
+                'source-layer': 'special_purpose_zone-5kqds8',
+                layout: {
+                    'visibility': 'none' // Start with layer hidden
+                },
+                paint: {
+                    'line-color': '#39FF14',
+                    'line-width': 4,
+                }
+            });
+        });
+        // Adding the Sydney zoning layer
+        map.on('load', () => {
+            // Add the vector source for the shapefile
+            map.addSource('zoning', {
+                type: 'vector',
+                url: 'mapbox://rheikkinen.77lopfhn'
+            });
+
+            // Add a fill layer for the shapefile
+            map.addLayer({
+                id: 'zoning-layer',
+                type: 'fill',
+                source: 'zoning',
+                'source-layer': 'zoning_shapefile-c1v9i7',
+                layout: {
+                    'visibility': 'none' // Start with layer hidden
+                },
+                paint: {
+                    'fill-color': [
+                        'match',
+                        ['get', 'SYM_CODE'], // Use the SYM_CODE attribute
+                        'IN2', '#2D66B4',   // Cool Blue
+                        'B5', '#66B244',    // Soft Green
+                        'RE1', '#D0D237',   // Yellow-Green
+                        'SP2', '#F67C2E',   // Soft Orange
+                        'E2', '#FF4F4F',    // Soft Red
+                        'R3', '#D12E4B',    // Pinkish Red
+                        'R4', '#9E1D25',    // Dark Red
+                        'E1', '#8AC6D1',    // Light Blue
+                        'UL', '#2D9B8B',    // Teal
+                        'RE2', '#D6A02E',   // Soft Yellow
+                        'C2', '#5275A0',    // Slate Blue
+                        'R2', '#B42B2D',    // Red
+                        'MU1', '#7E3971',   // Purple
+                        'C4', '#9B7D3A',    // Earthy Brown
+                        'W4', '#67B5C9',    // Light Teal
+                        'E4', '#9C4B3F',    // Muted Red
+                        'SP1', '#F29E6E',   // Orange-Yellow
+                        'E3', '#8D4F71',    // Dark Pink
+                        'R1', '#D84B2B',    // Bright Red
+                        'B2', '#4B9CD3',    // Sky Blue
+                        'B1', '#78D7D1',    // Aqua Blue
+                        'C1', '#F4B500',    // Warm Yellow
+                        'D', '#8C8C8C',     // Gray
+                        'B4', '#557AC7',    // Cool Blue
+                        'B7', '#79A56E',    // Green
+                        'DM', '#5C5C5C',    // Dark Gray
+                        'CA', '#F2D05D',    // Golden Yellow
+                        'W1', '#537B8B',    // Muted Blue
+                        '2(a)', '#C8A754',  // Earthy Yellow
+                        'PAE', '#D1B04C',   // Light Yellow
+                        'H', '#6299A0',     // Cool Teal
+                        'E', '#D28588',     // Soft Pink
+                        'G', '#8AC1BB',     // Pale Blue-Green
+                        'C', '#F0C40D',     // Bright Yellow
+                        'B', '#8FCE9A',     // Light Green
+                        'A', '#D97E60',     // Soft Red
+                        'I', '#6B4E83',     // Purple
+                        'F', '#F58B83',     // Coral Red
+                        'WFU', '#6F93A6',   // Dusty Blue
+                        'SP5', '#F5A757',   // Peach Orange
+                        'C3', '#FFB16D',    // Light Orange
+                        'PRC', '#D36239',   // Muted Red
+                        'B6', '#8F6E2A',    // Brown
+                        'None', '#D3D3D3',  // Default Gray for None
+                        '#CCCCCC' // Fallback color for undefined SYM_CODE
+                    ],
+                    'fill-opacity': 0.8
+                }
+            });
+        });
+        // ADD A GEOREFERENCED IMAGE FOR CALLALA BAY
+        map.on('load', () => {
+                map.addSource('Callala', {
+                    'type': 'raster',
+                    'url': 'mapbox://rheikkinen.22iut34e'
+                });
+
+                map.addLayer({
+                    id: 'urban_change',
+                    source: 'Callala',
+                    type: 'raster',
+                    layout: {
+                        'visibility': 'none' // Start with layer hidden
+                    }
+                });
+        });
+             // ADD RUSTLE LAYER WITH C FACTOR OF 0.08
+             map.on('load', () => {
+                map.addSource('RUSTLE c 0.08', {
+                    'type': 'raster',
+                    'url': 'mapbox://rheikkinen.92u3zhr9',
+                    tileSize: 256
+                });
+
+                map.addLayer({
+        id: 'c-factor-raster-layer',
+        type: 'raster',
+        source: 'RUSTLE c 0.08',
+        paint: {
+            'raster-color': [
+                'interpolate',
+                ['linear'],
+                ['raster-value'], // Access pixel values (Band 1)
+                0, 'rgb(40,146,198)',    // Blue: 0 - 10
+                0.05, 'rgb(159,194,154)',   // Green: 11 - 20
+                0.1, 'rgb(250,250,100)',   // Yellow: 21 - 30
+                0.15, 'rgb(205,140,51)',   // Orange: 31 - 40
+                0.2, 'rgb(232,16,21)',   // Red: 41 - 50
+  //              0.25, 'rgb(232,16,21)'    // Ensure red for the upper bound
+            ],
+            'raster-opacity': 0.6 // Adjust transparency as needed
+ //                   layout: {
+ //                       'visibility': 'none' // Start with layer hidden
+                    }
+                });
+        });
+
+            // setup the instance, pass callback functions
+
+            // instantiate the scrollama
+            var scroller = scrollama();
+            scroller
+                .setup({
+                    step: '.step',
+                    offset: 0.5,
+                    progress: true
+                })
+                .onStepEnter(response => {
+                    var chapter = config.chapters.find(c => c.id === response.element.id);
+
+                    if (chapter) {
+                        map.flyTo(chapter.location);
+
+                        if (chapter.callback) {
+                            window[chapter.callback](); // Trigger callback when entering the chapter
+                        }
+                        // Show the layer only for the specific chapter
+                        if (chapter.id === 'FINNS IN NSW') {
+                            showPolygonLayer();
+                            showLegend(); // Show legend when entering this chapter
+                        } else {
+                            hidePolygonLayer();
+                            hideLegend(); // Hide legend for other chapters
+                        }
+                        if (chapter.id === 'URBAN CHANGE') {
+                            showRectifiedMap();
+                        } else {
+                            hideRectifiedMap();
+                        }
+                        if (chapter.id === 'RUSLE') {
+                            showRasterLayer();
+                        } else {
+                            hideRasterLayer();
+                        }
+                        if (chapter.id === 'Lobster') {
+                            showHabitatLayer();
+                            showSanctuaryZoneLayer();
+                            showSpecialZoneLayer();
+                        } else {
+                            hideHabitatLayer();
+                            hideSanctuaryZoneLayer();
+                            hideSpecialZoneLayer();
+                        }
+                        if (chapter.id === 'URBIS') {
+                            showZoningLayer();
+                        } else {
+                            hideZoningLayer();
+                        }
+                    }
+                })
+                .onStepExit(response => {
+                    var chapter = config.chapters.find(c => c.id === response.element.id);
+
+                    // Hide the polygon layer when exiting the specific chapter
+                    if (chapter && chapter.id === 'FINNS IN NSW') {
+                        hidePolygonLayer();
+                        hideLegend(); // Ensure legend is hidden
+                    }
+                    if (chapter && chapter.id === 'URBAN CHANGE') {
+                        hideRectifiedMap();
+                    }
+
+                });
+
+
+                    // Remove existing markers indicating the center
+                    document.querySelectorAll('.custom-marker').forEach(marker => marker.remove());
+  
+                    // Add multiple markers for the chapter
+                    if (chapter.locations && chapter.locations.length > 0) {
+                        chapter.locations.forEach(loc => {
+                            new mapboxgl.Marker({ color: '#FF0000', className: 'custom-marker' })
+                                .setLngLat(loc.coordinates)
+                                .setPopup(new mapboxgl.Popup().setText(loc.description)) // Optional popup
+                                .addTo(map);
+                        });
+                    }
+
+                    if (config.showMarkers) {
+                        marker.setLngLat(chapter.location.center);
+                    }
+                    if (chapter.onChapterEnter.length > 0) {
+                        chapter.onChapterEnter.forEach(setLayerOpacity);
+                    }
+                    if (chapter.callback) {
+                        window[chapter.callback]();
+                    }
+                    if (chapter.rotateAnimation) {
+                        map.once('moveend', () => {
+                            const rotateNumber = map.getBearing();
+                            map.rotateTo(rotateNumber + 180, {
+                                duration: 30000, easing: function (t) {
+                                    return t;
+                                }
+                            });
+                        });
+                    }
+                    if (config.auto) {
+                        var next_chapter = (current_chapter + 1) % config.chapters.length;
+                        map.once('moveend', () => {
+                            document.querySelectorAll('[data-scrollama-index="' + next_chapter.toString() + '"]')[0].scrollIntoView();
+                        });
+                    
+                    }
+
+            if (config.auto) {
+                document.querySelectorAll('[data-scrollama-index="0"]')[0].scrollIntoView();
+            }   
+
+    </script>
+
+</body>
+
+</html>
