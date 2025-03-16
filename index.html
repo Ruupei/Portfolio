@@ -3,7 +3,7 @@
 
 <head>
     <meta charset='utf-8' />
-    <title>Portfolio - Roope Heikkinen</title>
+    <title>Mapbox Storytelling</title>
     <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
     <link rel="icon" type="image/x-icon"
         href="https://raw.githubusercontent.com/mapbox/assembly/publisher-staging/src/svgs/mapbox.svg">
@@ -266,6 +266,15 @@
         function hideRasterLayer() {
             map.setLayoutProperty('RUSLE 0.08', 'visibility', 'none');
         }
+        // Function to show orienteering map layer
+        function showOrienteeringMap() {
+            map.setLayoutProperty('orienteering-layer', 'visibility', 'visible');
+        }
+
+        // Function to hide orienteering map layer
+        function hideOrienteeringMap() {
+            map.setLayoutProperty('orienteering-layer', 'visibility', 'none');
+        }
 
         var story = document.getElementById('story');
         var features = document.createElement('div');
@@ -381,7 +390,6 @@
             );
         }
 
-        // Add the shapefile for Finns in NSW
         map.on('load', () => {
             // Add the vector source for the shapefile
             map.addSource('finns_shapefile', {
@@ -408,10 +416,8 @@
                     'fill-opacity': 0.8
                 }
             });
-        });
-        // Add the hotspot layer for Meadows Rd, WA
-        map.on('load', () => {
-            // Add the vector source for the shapefile
+
+            // Add the hotspot layer for Meadows Rd, WA
             map.addSource('hotspots', {
                 type: 'vector',
                 url: 'mapbox://rheikkinen.cm4dn0ybw1obi1pl49fgaoodv-48f3j'
@@ -431,10 +437,8 @@
                     'circle-color': '#FF5733'
                 }
             });
-        });
-        // Adding the lobster habitat layer
-        map.on('load', () => {
-            // Add the vector source for the shapefile
+
+            // Adding the lobster habitat layer
             map.addSource('lobster_habitat', {
                 type: 'vector',
                 url: 'mapbox://rheikkinen.5jjyrqn6'
@@ -454,10 +458,8 @@
                     'fill-opacity': 1
                 }
             });
-        });
-        // Adding the sanctuary zone layer
-        map.on('load', () => {
-            // Add the vector source for the shapefile
+
+            // Adding the sanctuary zone layer
             map.addSource('sanctuary-zone', {
                 type: 'vector',
                 url: 'mapbox://rheikkinen.3p9788sc'
@@ -477,10 +479,8 @@
                     'line-width': 4,
                 }
             });
-        });
-        // Adding the special purpose zone layer
-        map.on('load', () => {
-            // Add the vector source for the shapefile
+
+            // Adding the special purpose zone layer
             map.addSource('special-purpose-zone', {
                 type: 'vector',
                 url: 'mapbox://rheikkinen.0517aih3'
@@ -500,10 +500,8 @@
                     'line-width': 4,
                 }
             });
-        });
-        // Adding the Sydney zoning layer
-        map.on('load', () => {
-            // Add the vector source for the shapefile
+
+            // Adding the Sydney zoning layer
             map.addSource('zoning', {
                 type: 'vector',
                 url: 'mapbox://rheikkinen.77lopfhn'
@@ -571,165 +569,188 @@
                     'fill-opacity': 0.8
                 }
             });
+
+            // ADD A GEOREFERENCED IMAGE FOR CALLALA BAY
+            map.addSource('Callala', {
+                'type': 'raster',
+                'url': 'mapbox://rheikkinen.22iut34e'
+            });
+
+            map.addLayer({
+                id: 'urban_change',
+                source: 'Callala',
+                type: 'raster',
+                layout: {
+                    'visibility': 'none' // Start with layer hidden
+                }
+            });
+
+            // ADD RUSTLE LAYER WITH C FACTOR OF 0.08
+            map.addSource('RUSTLE c 0.08', {
+                'type': 'raster',
+                'url': 'mapbox://rheikkinen.92u3zhr9',
+                'tileSize': 256
+            });
+
+            map.addLayer({
+                id: 'c-factor-raster-layer',
+                type: 'raster',
+                source: 'RUSTLE c 0.08',
+                paint: {
+                    'raster-color': [
+                        'interpolate',
+                        ['linear'],
+                        ['raster-value'], // Access pixel values (Band 1)
+                        0, 'rgb(40,146,198)',    // Blue: 0 - 10
+                        0.05, 'rgb(159,194,154)',   // Green: 11 - 20
+                        0.1, 'rgb(250,250,100)',   // Yellow: 21 - 30
+                        0.15, 'rgb(205,140,51)',   // Orange: 31 - 40
+                        0.2, 'rgb(232,16,21)',   // Red: 41 - 50
+                    ],
+                    'raster-opacity': 0.6 // Adjust transparency as needed
+                }
+            });
+
+            // Add orienteering map raster source
+            map.addSource('orienteering_map', {
+                type: 'raster',
+                url: 'mapbox://rheikkinen.9nq0hnjv',
+                tileSize: 256
+            });
+
+            // Add orienteering map layer
+            map.addLayer({
+                'id': 'orienteering-layer',
+                'type': 'raster',
+                'source': 'orienteering_map',
+                'layout': {
+                    'visibility': 'none'
+                },
+                'paint': {
+                    'raster-opacity': 0.7
+                }
+            });
         });
-        // ADD A GEOREFERENCED IMAGE FOR CALLALA BAY
-        map.on('load', () => {
-                map.addSource('Callala', {
-                    'type': 'raster',
-                    'url': 'mapbox://rheikkinen.22iut34e'
-                });
 
-                map.addLayer({
-                    id: 'urban_change',
-                    source: 'Callala',
-                    type: 'raster',
-                    layout: {
-                        'visibility': 'none' // Start with layer hidden
+        // setup the instance, pass callback functions
+
+        // instantiate the scrollama
+        var scroller = scrollama();
+        scroller
+            .setup({
+                step: '.step',
+                offset: 0.5,
+                progress: true
+            })
+            .onStepEnter(response => {
+                var chapter = config.chapters.find(c => c.id === response.element.id);
+
+                if (chapter) {
+                    map.flyTo(chapter.location);
+
+                    if (chapter.callback) {
+                        window[chapter.callback](); // Trigger callback when entering the chapter
                     }
-                });
-        });
-             // ADD RUSTLE LAYER WITH C FACTOR OF 0.08
-             map.on('load', () => {
-                map.addSource('RUSTLE c 0.08', {
-                    'type': 'raster',
-                    'url': 'mapbox://rheikkinen.92u3zhr9',
-                    tileSize: 256
-                });
-
-                map.addLayer({
-        id: 'c-factor-raster-layer',
-        type: 'raster',
-        source: 'RUSTLE c 0.08',
-        paint: {
-            'raster-color': [
-                'interpolate',
-                ['linear'],
-                ['raster-value'], // Access pixel values (Band 1)
-                0, 'rgb(40,146,198)',    // Blue: 0 - 10
-                0.05, 'rgb(159,194,154)',   // Green: 11 - 20
-                0.1, 'rgb(250,250,100)',   // Yellow: 21 - 30
-                0.15, 'rgb(205,140,51)',   // Orange: 31 - 40
-                0.2, 'rgb(232,16,21)',   // Red: 41 - 50
-  //              0.25, 'rgb(232,16,21)'    // Ensure red for the upper bound
-            ],
-            'raster-opacity': 0.6 // Adjust transparency as needed
- //                   layout: {
- //                       'visibility': 'none' // Start with layer hidden
-                    }
-                });
-        });
-
-            // setup the instance, pass callback functions
-
-            // instantiate the scrollama
-            var scroller = scrollama();
-            scroller
-                .setup({
-                    step: '.step',
-                    offset: 0.5,
-                    progress: true
-                })
-                .onStepEnter(response => {
-                    var chapter = config.chapters.find(c => c.id === response.element.id);
-
-                    if (chapter) {
-                        map.flyTo(chapter.location);
-
-                        if (chapter.callback) {
-                            window[chapter.callback](); // Trigger callback when entering the chapter
-                        }
-                        // Show the layer only for the specific chapter
-                        if (chapter.id === 'FINNS IN NSW') {
-                            showPolygonLayer();
-                            showLegend(); // Show legend when entering this chapter
-                        } else {
-                            hidePolygonLayer();
-                            hideLegend(); // Hide legend for other chapters
-                        }
-                        if (chapter.id === 'URBAN CHANGE') {
-                            showRectifiedMap();
-                        } else {
-                            hideRectifiedMap();
-                        }
-                        if (chapter.id === 'RUSLE') {
-                            showRasterLayer();
-                        } else {
-                            hideRasterLayer();
-                        }
-                        if (chapter.id === 'Lobster') {
-                            showHabitatLayer();
-                            showSanctuaryZoneLayer();
-                            showSpecialZoneLayer();
-                        } else {
-                            hideHabitatLayer();
-                            hideSanctuaryZoneLayer();
-                            hideSpecialZoneLayer();
-                        }
-                        if (chapter.id === 'URBIS') {
-                            showZoningLayer();
-                        } else {
-                            hideZoningLayer();
-                        }
-                    }
-                })
-                .onStepExit(response => {
-                    var chapter = config.chapters.find(c => c.id === response.element.id);
-
-                    // Hide the polygon layer when exiting the specific chapter
-                    if (chapter && chapter.id === 'FINNS IN NSW') {
+                    // Show the layer only for the specific chapter
+                    if (chapter.id === 'FINNS IN NSW') {
+                        showPolygonLayer();
+                        showLegend(); // Show legend when entering this chapter
+                    } else {
                         hidePolygonLayer();
-                        hideLegend(); // Ensure legend is hidden
+                        hideLegend(); // Hide legend for other chapters
                     }
-                    if (chapter && chapter.id === 'URBAN CHANGE') {
+                    if (chapter.id === 'URBAN CHANGE') {
+                        showRectifiedMap();
+                    } else {
                         hideRectifiedMap();
                     }
+                    if (chapter.id === 'RUSLE') {
+                        showRasterLayer();
+                    } else {
+                        hideRasterLayer();
+                    }
+                    if (chapter.id === 'Lobster') {
+                        showHabitatLayer();
+                        showSanctuaryZoneLayer();
+                        showSpecialZoneLayer();
+                    } else {
+                        hideHabitatLayer();
+                        hideSanctuaryZoneLayer();
+                        hideSpecialZoneLayer();
+                    }
+                    if (chapter.id === 'URBIS') {
+                        showZoningLayer();
+                    } else {
+                        hideZoningLayer();
+                    }
+                    if (chapter.id === 'ORIENTEERING') {
+                        showOrienteeringMap();
+                    } else {
+                        hideOrienteeringMap();
+                    }
+                }
+            })
+            .onStepExit(response => {
+                var chapter = config.chapters.find(c => c.id === response.element.id);
 
-                });
+                // Hide the polygon layer when exiting the specific chapter
+                if (chapter && chapter.id === 'FINNS IN NSW') {
+                    hidePolygonLayer();
+                    hideLegend(); // Ensure legend is hidden
+                }
+                if (chapter && chapter.id === 'URBAN CHANGE') {
+                    hideRectifiedMap();
+                }
+                if (chapter && chapter.id === 'ORIENTEERING') {
+                    hideOrienteeringMap();
+                }
+
+            });
 
 
-                    // Remove existing markers indicating the center
-                    document.querySelectorAll('.custom-marker').forEach(marker => marker.remove());
+            // Remove existing markers indicating the center
+            document.querySelectorAll('.custom-marker').forEach(marker => marker.remove());
   
-                    // Add multiple markers for the chapter
-                    if (chapter.locations && chapter.locations.length > 0) {
-                        chapter.locations.forEach(loc => {
-                            new mapboxgl.Marker({ color: '#FF0000', className: 'custom-marker' })
-                                .setLngLat(loc.coordinates)
-                                .setPopup(new mapboxgl.Popup().setText(loc.description)) // Optional popup
-                                .addTo(map);
-                        });
-                    }
+            // Add multiple markers for the chapter
+            if (chapter.locations && chapter.locations.length > 0) {
+                chapter.locations.forEach(loc => {
+                    new mapboxgl.Marker({ color: '#FF0000', className: 'custom-marker' })
+                        .setLngLat(loc.coordinates)
+                        .setPopup(new mapboxgl.Popup().setText(loc.description)) // Optional popup
+                        .addTo(map);
+                });
+            }
 
-                    if (config.showMarkers) {
-                        marker.setLngLat(chapter.location.center);
-                    }
-                    if (chapter.onChapterEnter.length > 0) {
-                        chapter.onChapterEnter.forEach(setLayerOpacity);
-                    }
-                    if (chapter.callback) {
-                        window[chapter.callback]();
-                    }
-                    if (chapter.rotateAnimation) {
-                        map.once('moveend', () => {
-                            const rotateNumber = map.getBearing();
-                            map.rotateTo(rotateNumber + 180, {
-                                duration: 30000, easing: function (t) {
-                                    return t;
-                                }
-                            });
-                        });
-                    }
-                    if (config.auto) {
-                        var next_chapter = (current_chapter + 1) % config.chapters.length;
-                        map.once('moveend', () => {
-                            document.querySelectorAll('[data-scrollama-index="' + next_chapter.toString() + '"]')[0].scrollIntoView();
-                        });
-                    
-                    }
-
+            if (config.showMarkers) {
+                marker.setLngLat(chapter.location.center);
+            }
+            if (chapter.onChapterEnter.length > 0) {
+                chapter.onChapterEnter.forEach(setLayerOpacity);
+            }
+            if (chapter.callback) {
+                window[chapter.callback]();
+            }
+            if (chapter.rotateAnimation) {
+                map.once('moveend', () => {
+                    const rotateNumber = map.getBearing();
+                    map.rotateTo(rotateNumber + 180, {
+                        duration: 30000, easing: function (t) {
+                            return t;
+                        }
+                    });
+                });
+            }
             if (config.auto) {
-                document.querySelectorAll('[data-scrollama-index="0"]')[0].scrollIntoView();
-            }   
+                var next_chapter = (current_chapter + 1) % config.chapters.length;
+                map.once('moveend', () => {
+                    document.querySelectorAll('[data-scrollama-index="' + next_chapter.toString() + '"]')[0].scrollIntoView();
+                });
+            
+            }
+
+        if (config.auto) {
+            document.querySelectorAll('[data-scrollama-index="0"]')[0].scrollIntoView();
+        }   
 
     </script>
 
